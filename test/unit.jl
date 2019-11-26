@@ -279,3 +279,14 @@ end
     A6 = randtransmat(4)
     @test A4 == A5 != A6
 end
+
+@testset "Experimental" begin
+    a = [0.4, 0.6]
+    B = [Normal(0,1), Exponential(2)]
+    m = MixtureModel(B, a)
+
+    @test MixtureModel(HMM(m)).prior == m.prior
+    @test MixtureModel(HMM(m)).components == m.components
+
+    # TODO: Assert error if #distns != 1
+end

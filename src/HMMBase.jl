@@ -12,7 +12,7 @@ using Distributions
 using LinearAlgebra
 
 import Base: ==, copy, rand, size, OneTo
-import Distributions: fit_mle, loglikelihood
+import Distributions: fit_mle, loglikelihood, MixtureModel
 import Random: AbstractRNG, GLOBAL_RNG
 
 export
@@ -51,6 +51,7 @@ include("viterbi_api.jl")
 include("likelihoods.jl")
 include("likelihoods_api.jl")
 include("utilities.jl")
+include("experimental.jl")
 
 # To be removed in a future version
 # ---------------------------------
