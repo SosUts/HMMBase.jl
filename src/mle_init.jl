@@ -4,10 +4,18 @@ function kmeans_init!(hmm::AbstractHMM{Univariate}, observations; kwargs...)
     N = last(size(observations))
     seq = Array{Union{Nothing, Int}}(nothing, size(observations))
 
-    for n in OneTo(N)
-        res = kmeans(filter(!isnothing, observations[:, n])', size(hmm, 1))
+    # for n in OneTo(N)
+    #     res = kmeans(filter(!isnothing, observations[:, n])', size(hmm, 1))
+    #     T = length(filter(!isnothing, observations[:, n]))
+    #     seq[1:T, n] .= res.assignments
+    # end
+    res = kmeans(filter(!isnothing, observations)', size(hmm, 1))
+    Ts = [length(filter(!isnothing, col)) for col in eachcol(observations)]
+
+    seq[1:Ts[1]] .= res.assignments[1:Ts[1]]
+    for n in 2:N
         T = length(filter(!isnothing, observations[:, n]))
-        seq[1:T, n] .= res.assignments
+        seq[1:T, n] .= res.assignments[Ts[n-1]+1:Ts[n-1]+Ts[n]]
     end
 
     # # Initialize A

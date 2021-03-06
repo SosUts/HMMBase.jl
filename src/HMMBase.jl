@@ -11,8 +11,10 @@ using Clustering
 using Distributions
 using Hungarian
 using LinearAlgebra
+using StaticArrays
 
 using Base: OneTo
+using Base.Threads: @threads
 using Random: AbstractRNG, GLOBAL_RNG
 
 # Extended functions

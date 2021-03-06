@@ -19,26 +19,27 @@ function forwardlog!(
     fill!(α, 0.0)
     fill!(c, 0.0)
 
-    for n in OneTo(N)
+    @inbounds for n in OneTo(N)
         T = length(filter(!isnothing, LL[:, 1, n]))
-        m = maximum(view(LL, 1, :, n))
+        # m = maximum(view(LL, 1, :, n))
 
         for j in OneTo(K)
-            α[1, j, n] = a[j] * exp(LL[1, j, n] - m)
+            α[1, j, n] = a[j] * exp(LL[1, j, n])
+            # α[1, j, n] = a[j] * exp(LL[1, j, n] - m)
             c[1, n] += α[1, j, n]
         end
         for j in OneTo(K)
             α[1, j, n] /= c[1, n]
         end
-        c[1, n] = log(c[1, n]) + m
-        @inbounds for t = 2:T
-            m = maximum(view(LL, t, :, n))
+        # c[1, n] = log(c[1, n]) + m
+        for t = 2:T
+            # m = maximum(view(LL, t, :, n))
 
             for j in OneTo(K)
-                for i in OneTo(K)
+                @simd for i in OneTo(K)
                     α[t, j, n] += α[t-1, i, n] * A[i, j]
                 end
-                α[t, j, n] *= exp(LL[t, j, n] - m)
+                α[t, j, n] *= exp(LL[t, j, n])
                 c[t, n] += α[t, j, n]
             end
 
@@ -46,9 +47,10 @@ function forwardlog!(
                 α[t, j, n] /= c[t, n]
             end
 
-            c[t, n] = log(c[t, n]) + m
+            # c[t, n] = log(c[t, n]) + m
             for t = T+1:size(LL, 1)
-                for j in OneTo(K)
+                c[t, n] = nothing
+                @simd for j in OneTo(K)
                     α[t, j, n] = nothing
                 end
             end
@@ -73,39 +75,39 @@ function backwardlog!(
     ((T == 0)||(N == 0)) && return
 
     fill!(β, 0.0)
-    fill!(c, 0.0)
+    # fill!(c, 0.0)
 
-    for n in OneTo(N)
+    @inbounds for n in OneTo(N)
         T = length(filter(!isnothing, LL[:, 1, n]))
         for j in OneTo(K)
             β[T, j, n] = 1.0
         end
 
         for t = T-1:-1:1
-            m = vec_maximum(view(LL, t+1, :, n))
-            for i in OneTo(K)
-                L[i] = exp(LL[t+1, i, n] - m)
+            # m = vec_maximum(view(LL, t+1, :, n))
+            @simd for i in OneTo(K)
+                L[i] = exp(LL[t+1, i, n])
             end
 
-            for j in OneTo(K)
-                for i in OneTo(K)
+            @simd for j in OneTo(K)
+                @simd for i in OneTo(K)
                     β[t, j, n] += β[t+1, i, n] * A[j, i] * L[i]
                 end
-                c[t+1, n] += β[t, j, n]
+                # c[t+1, n] += β[t, j, n]
             end
 
-            for j in OneTo(K)
+            @simd for j in OneTo(K)
                 β[t, j, n] /= c[t+1, n]
             end
-            c[t+1, n] = log(c[t+1, n]) + m
+            # c[t+1, n] = log(c[t+1, n]) + m
         end
-        m = vec_maximum(view(LL, 1, :, n))
-        for j in OneTo(K)
-            c[1, n] += a[j] * exp(LL[1, j, n] - m) * β[1, j, n]
-        end
-        c[1, n] = log(c[1, n]) + m
+        # m = vec_maximum(view(LL, 1, :, n))
+        # for j in OneTo(K)
+        #     c[1, n] += a[j] * exp(LL[1, j, n] - m) * β[1, j, n]
+        # end
+        # c[1, n] = log(c[1, n]) + m
         for t = T+1:size(LL, 1)
-            for j in OneTo(K)
+            @simd for j in OneTo(K)
                 β[t, j, n] = nothing
             end
         end
@@ -120,30 +122,28 @@ function posteriors!(
 )
     @argcheck size(γ) == size(α) == size(β)
     T, K, N = size(α)
-    for n in OneTo(N)
+    @inbounds for n in OneTo(N)
         T = length(filter(!isnothing, α[:, 1, n]))
         for t in OneTo(T)
-            c = 0.0
-            for i in OneTo(K)
+            # c = 0.0
+            @simd for i in OneTo(K)
                 γ[t, i, n] = α[t, i, n] * β[t, i, n]
                 # c += γ[t, i, n]
             end
-            for i in OneTo(K)
-                c += γ[t, i, n]
-            end
-            for i in OneTo(K)
-                γ[t, i, n] /= c
-            end
+            # for i in OneTo(K)
+            #     c += γ[t, i, n]
+            # end
+            # for i in OneTo(K)
+            #     γ[t, i, n] /= c[t, n]
+            # end
         end
     end
 end
 
 """
     forward(a, A, LL) -> (Array, Float)
-
 Compute forward probabilities using samples likelihoods.
 See [Forward-backward algorithm](https://en.wikipedia.org/wiki/Forward–backward_algorithm).
-
 **Output**
 - `Array{Float64}`: forward probabilities.
 - `Float64`: log-likelihood of the observed sequence.
@@ -167,10 +167,8 @@ end
 
 """
     backward(a, A, LL) -> (Array, Float)
-
 Compute backward probabilities using samples likelihoods.
 See [Forward-backward algorithm](https://en.wikipedia.org/wiki/Forward–backward_algorithm).
-
 **Output**
 - `Array{Float64}`: backward probabilities.
 - `Float64`: log-likelihood of the observed sequence.
@@ -185,13 +183,10 @@ end
 
 """
     forward(hmm, observations; robust) -> (Array, Float)
-
 Compute forward probabilities of the `observations` given the `hmm` model.
-
 **Output**
 - `Array{Union{Nothing, Float64}, 3}`: forward probabilities.
 - `Float64`: log-likelihood of the observed sequence.
-
 **Example**
 ```julia
 using Distributions, HMMBase
@@ -209,13 +204,10 @@ end
 
 """
     backward(hmm, observations; robust) -> (Array, Float)
-
 Compute forward probabilities of the `observations` given the `hmm` model.
-
 **Output**
 - `Array{Union{Nothing, Float64}, 3}`: backward probabilities.
 - `Float64`: log-likelihood of the observed sequence.
-
 **Example**
 ```julia
 using Distributions, HMMBase
@@ -233,22 +225,19 @@ end
 
 """
     posteriors(α, β) -> Array
-
 Compute posterior probabilities from `α` and `β`.
-
 **Arguments**
 - `α::AbstractArray`: forward probabilities.
 - `β::AbstractArray`: backward probabilities.
 """
 function posteriors(α::AbstractArray, β::AbstractArray)
     γ = Array{Union{Nothing,Float64}}(nothing, size(α))
-    posteriors!(γ, α, β)
+    posteriors!(γ, c, α, β)
     γ
 end
 
 """
     posteriors(a, A, LL; kwargs...) -> Array
-
 Compute posterior probabilities using samples likelihoods.
 """
 function posteriors(a::AbstractVector, A::AbstractMatrix, LL::AbstractArray; kwargs...)
@@ -259,9 +248,7 @@ end
 
 """
     posteriors(hmm, observations; robust) -> Array
-
 Compute posterior probabilities using samples likelihoods.
-
 **Example**
 ```julia
 using Distributions, HMMBase
@@ -279,13 +266,10 @@ end
 
 """
     loglikelihood(hmm, observations; robust) -> Float64
-
 Compute the log-likelihood of the observations under the model.
 This is defined as the sum of the log of the normalization coefficients in the forward filter.
-
 **Output**
 - `Float64`: log-likelihood of the observations sequence under the model.
-
 **Example**
 ```jldoctest
 using Distributions, HMMBase

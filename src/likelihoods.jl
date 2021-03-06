@@ -57,7 +57,6 @@ function loglikelihoods(hmm::AbstractHMM, observations::AbstractArray; logl = no
     (logl !== nothing) && deprecate_kwargs("logl")
     T, K, N = size(observations, 1), size(hmm, 1), last(size(observations))
     LL = Array{Union{Float64,Nothing}}(nothing, T, K, N)
-
     loglikelihoods!(LL, hmm, observations)
     if robust
         replace!(LL, -Inf => nextfloat(-Inf), Inf => log(prevfloat(Inf)))

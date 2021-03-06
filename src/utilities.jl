@@ -30,9 +30,14 @@ function gettransmat(seq::Array; relabel = false)
     K = maximum(values(mapping))
 
     transmat = zeros(K, K)
-    for i = 1:length(filter(!isnothing, seq))-1
-        transmat[mapping[seq[i]], mapping[seq[i+1]]] += 1
+    for n = 1:size(seq, 2)
+        for i = 1:length(filter(!isnothing, seq[:, n]))-1
+            transmat[mapping[seq[i, n]], mapping[seq[i+1, n]]] += 1
+        end
     end
+    # for i = 1:length(filter(!isnothing, seq))-1
+    #     transmat[mapping[seq[i]], mapping[seq[i+1]]] += 1
+    # end
     transmat = transmat ./ sum(transmat, dims = 2)
     transmat[isnan.(transmat)] .= 0.0
 
@@ -167,3 +172,8 @@ function remove_nothing(x::AbstractArray)
 end
 
 add_dim(x::AbstractVecOrMat) = reshape(x, (size(x)...,1))
+
+function Base.getindex(hmm::HMM, i::Int)
+    1 <= i <= size(hmm, 1) || throw(BoundsError(hmm, i))
+    return [hmm.a[i], hmm.A[i, :], hmm.B[i]]
+end

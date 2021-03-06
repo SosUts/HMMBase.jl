@@ -6,7 +6,7 @@ function update_a!(a::AbstractVector, α, β)
 
     #TODO: sometimes a becomes nan
     K = length(a)
-    c = 0.0
+    _c = 0.0
     _, K, N = size(α)
     fill!(a, 0.0)
     for n in OneTo(N)
@@ -16,16 +16,17 @@ function update_a!(a::AbstractVector, α, β)
         end
     end
     for i in OneTo(K)
-        c += a[i]
+        _c += a[i]
     end
     for i in OneTo(K)
-        a[i] /= c
+        a[i] /= _c
     end
 end
 
 # In-place update of the transition matrix.
 function update_A!(
     A::AbstractMatrix,
+    c::AbstractMatrix,
     ξ::AbstractArray,
     α::AbstractArray,
     β::AbstractArray,
@@ -45,19 +46,19 @@ function update_A!(
     @inbounds for n in OneTo(N)
         T = length(filter(!isnothing, α[:, 1, n]))
         for t in OneTo(T - 1)
-            m = maximum(view(LL, t+1, :, n))
-            c = 0.0
+            # m = maximum(view(LL, t+1, :, n))
+            # c = 0.0
 
             for i in OneTo(K), j in OneTo(K)
-                ξ[t, i, j, n] = α[t, i, n] * A[i, j] * exp(LL[t+1, j, n] - m) * β[t+1, j, n]
-                c += ξ[t, i, j, n]
+                ξ[t, i, j, n] = (α[t, i, n] * A[i, j] * exp(LL[t+1, j, n]) * β[t+1, j, n]) / c[t+1, n]
+                # c += ξ[t, i, j, n]
             end
-            for i in OneTo(K), j in OneTo(K)
-                c += ξ[t, i, j, n]
-            end
-            for i in OneTo(K), j in OneTo(K)
-                ξ[t, i, j, n] /= c
-            end
+            # for i in OneTo(K), j in OneTo(K)
+            #     c += ξ[t, i, j, n]
+            # end
+            # for i in OneTo(K), j in OneTo(K)
+            #     ξ[t, i, j, n] /= c[t+1, n]
+            # end
         end
     end
 
@@ -65,16 +66,16 @@ function update_A!(
     @inbounds for n in OneTo(N)
         T = length(filter(!isnothing, α[:, 1, n]))
         for i in OneTo(K)
-            c = 0.0
+            _c = 0.0
 
             for j in OneTo(K)
                 for t in OneTo(T - 1)
                     A[i, j] += ξ[t, i, j, n]
                 end
-                c += A[i, j]
+                _c += A[i, j]
             end
             for j in OneTo(K)
-                A[i, j] /= c
+                A[i, j] /= _c
             end
         end
     end
@@ -108,6 +109,7 @@ function update_B!(B::AbstractVector{Distribution{Univariate}}, γ::AbstractArra
                 )
         end
     end
+
 end
 
 function update_B!(B::AbstractVector{Distribution{Multivariate}}, γ::AbstractArray, observations, estimator)
@@ -168,12 +170,12 @@ function fit_mle!(
     backwardlog!(β, c, hmm.a, hmm.A, LL)
     posteriors!(γ, α, β)
 
-    logtot = sum(c)
+    logtot = sum(log.(filter(!isnothing, c)))
     (display == :iter) && println("Iteration 0: logtot = $logtot")
 
-    for it = 1:maxiter
+    @inbounds for it = 1:maxiter
         update_a!(hmm.a, α, β)
-        update_A!(hmm.A, ξ, α, β, LL)
+        update_A!(hmm.A, c, ξ, α, β, LL)
         update_B!(hmm.B, γ, observations, estimator)
         # Ensure the "connected-ness" of the states,
         # this prevents case where there is no transitions
@@ -189,7 +191,7 @@ function fit_mle!(
         backwardlog!(β, c, hmm.a, hmm.A, LL)
         posteriors!(γ, α, β)
 
-        logtotp = sum(c)
+        logtotp = sum(log.(filter(!isnothing, c)))
         (display == :iter) && println("Iteration $it: logtot = $logtotp")
 
         push!(history.logtots, logtotp)
